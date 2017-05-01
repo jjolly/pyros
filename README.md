@@ -1,7 +1,7 @@
 # pyros
 Python scripts for managing romsets
 
-You have found yet another romset manager, along the likes of ClrMamePro and Romvault. Like it's predecessors, the intention of Pyros is to create a complete set of machine rom files from other sets of incomplete files and a DATFile.
+You have found yet another romset manager, along the likes of ClrMamePro and Romvault. Like it's predecessors, the intention of Pyros is to create a complete set of machine rom files from other sets of incomplete files and a DATFile. The incomplete files can be either zipped files or unzipped files. At this time Pyros does not support the uncompression of 7zip files.
 
 This python script requires Python v2.7.12 or later.
 
@@ -70,6 +70,19 @@ for i in $(./pytor.py fig-2.56.torrent fig-2.56); do mv $i 2.55-rollback; done
 ```
 
 And now I have a clean romset, and a set of files I can use if I need to return to an older romset version.
+
+## Limitations:
+As with any program, it can't do everything. Here are a few of the missing features and possible workarounds:
+
+* Only builds merged sets
+  * Split sets and non-merged sets will come as a later feature.
+* Does not read 7zipped files
+  * Will read unzipped files, so uncompress those 7zips.
+* Works with only one datfile at a time
+  * I get around this by running scripts that loop through a directory of dats.
+* Does not work with mame -listxml
+* Does not manage CHDs
+
 
 ## Acknowledgements
 I'd like to thank:
