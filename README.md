@@ -58,9 +58,9 @@ With the following:
 
 You will see a list of files that do not belong to that torrent:
 ```
-kidgame.zip
-advgame.zip
-arcgame.zip
+fig-2.56/kidgame.zip
+fig-2.56/advgame.zip
+fig-2.56/arcgame.zip
 ```
 
 From the Linux command line, I use the script like this:
