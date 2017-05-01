@@ -46,7 +46,7 @@ It's really just a three step process:
 That script was created to help clean the cruft out of my romsets. After building a romset, it's good to remove any obsoleted files.
 
 ## pytor.py usage
-```./pytor.py <torrent file> <path to files in torrent>
+```./pytor.py <torrent file> <path to files in torrent>```
 
 With the following:
 * fig-2.56 - Directory of my Fig(tm) 2.56 romset - recently rebuilt
