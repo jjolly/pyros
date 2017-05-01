@@ -7,7 +7,7 @@ This python script requires Python v2.7.12 or later.
 
 ## Installation:
 
-Copy the file into your <home>/bin directory, or anywhere your PATH reaches. There aren't complicated config files or libraries. Just make sure Python is installed and you're ready to go.
+Copy the file into your ```<home>/bin``` directory, or anywhere your PATH reaches. There aren't complicated config files or libraries. Just make sure Python is installed and you're ready to go.
 
 You may need to set the script file as executable, like this:
 ```chmod u+x ~/bin/pyros.py```
@@ -15,11 +15,11 @@ You may need to set the script file as executable, like this:
 ## Usage:
 ```./pyros.py <destination directory> <datfile> <source directory>...```
 
-If I wanted to update a romset for my Fig(tm) Game Console, from version 2.55 to 2.56, and I had my files in the following directories:
-* fig-2.55 - Directory containing the old set of Fig(tm) roms
+If I wanted to update a romset for my Fig&trade; Game Console, from version 2.55 to 2.56, and I had my files in the following directories:
+* fig-2.55 - Directory containing the old set of Fig&trade; roms
 * fig-update-2.55-to-2.56 - Directory containing the small subset of updated roms to add to the new set
-* fig-2.56 - Directory that will contain my new Fig(tm) roms
-* fig-2.56.dat - DATFile containing the romset definition for Fig(tm) 2.56
+* fig-2.56 - Directory that will contain my new Fig&trade; roms
+* fig-2.56.dat - DATFile containing the romset definition for Fig&trade; 2.56
 
 I would create my new romset with the following command:
 
@@ -49,8 +49,8 @@ That script was created to help clean the cruft out of my romsets. After buildin
 ```./pytor.py <torrent file> <path to files in torrent>```
 
 With the following:
-* fig-2.56 - Directory of my Fig(tm) 2.56 romset - recently rebuilt
-* fig-2.56.torrent - Torrent file for the Fig(tm) 2.56 romset
+* fig-2.56 - Directory of my Fig&trade; 2.56 romset - recently rebuilt
+* fig-2.56.torrent - Torrent file for the Fig&trade; 2.56 romset
 
 ```
 ./pytor.py fig-2.56.torrent fig-2.56
