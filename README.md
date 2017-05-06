@@ -3,7 +3,7 @@ Python scripts for managing romsets
 
 You have found yet another romset manager, along the likes of ClrMamePro and Romvault. Like it's predecessors, the intention of Pyros is to create a complete set of machine rom files from other sets of incomplete files and a DATFile. The incomplete files can be either zipped files or unzipped files. At this time Pyros does not support the uncompression of 7zip files.
 
-This python script requires Python v2.7.12 or later.
+This python script requires Python v3.4 or later.
 
 ## Installation:
 

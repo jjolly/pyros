@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import os, sys, gc
 from stat import *
@@ -8,6 +8,7 @@ import zlib
 import struct
 import pickle
 import tempfile
+import traceback
 import xml.etree.ElementTree as ET
 from multiprocessing import Pool
 
@@ -54,15 +55,15 @@ def collect_size_crc(src, cachepath):
 
     for f, s, m in filelist:
         count += 1
-        print >> sys.stderr, '\rReading source {0}/{1}'.format(count, total),
+        print('\rReading source {0}/{1}'.format(count, total), file=sys.stderr, end="")
         f_stat = os.stat(f)
         # I'm not sure this caching is useful.
         if cache != None:
-            if cache.has_key(f):
+            if f in cache:
                 if cache[f]["size"] == f_stat.st_size and cache[f]["mtime"] == f_stat.st_mtime:
                     for crc32, size, base, name in cache[f]["roms"]:
                         filekey = (crc32, size)
-                        if not files.has_key(filekey):
+                        if filekey not in files:
                             files[filekey] = (base, name)
                     continue
             else:
@@ -77,7 +78,7 @@ def collect_size_crc(src, cachepath):
                         cache[f]["roms"].append((info.CRC, info.file_size, f, info.filename))
                         savecache = True
                     filekey = (info.CRC, info.file_size)
-                    if files.has_key( filekey ):
+                    if filekey in files:
                         continue
                     files[(info.CRC, info.file_size)] = (f, info.filename)
         except zipfile.BadZipfile:
@@ -85,15 +86,15 @@ def collect_size_crc(src, cachepath):
             # uncompressed. This means 7zips will be ignored.
             try:
                 size = os.stat(f).st_size
-                crc32 = zlib.crc32(open(f).read())
+                crc32 = zlib.crc32(open(f, 'rb').read())
                 if cache != None:
                     cache[f]["roms"].append((crc32, size, None, f))
                     savecache = True
                 files[(crc32, size)] = (None, f)
             except OSError:
-                print >> sys.stderr, "Bad file " + f + ", skipping"
+                print("Bad file " + f + ", skipping", file=sys.stderr)
 
-    print >> sys.stderr, ""
+    print("", file=sys.stderr)
 
     if savecache == True and cache != None and cachepath:
         pickle.dump(cache, open(cachepath,mode='w'), pickle.HIGHEST_PROTOCOL)
@@ -117,18 +118,20 @@ def find_files_for_dat(dat, srcs, cachepath):
         # This is where the listxml support would need to come in.
         for machine in [m for m in datroot if m.tag == "machine" or m.tag == "game"]:
             mname = machine.attrib["name"].strip()
+            if mname != "hapyfsh2":
+                continue
             clonename = None
-            if machine.attrib.has_key("cloneof"):
+            if "cloneof" in machine.attrib:
                 clonename = mname
                 mname = machine.attrib["cloneof"].strip()
             newroms = {}
             # Here's where only merged sets are handled.
             # Could easily be fixed to handle split or non-merged sets
-            if newgames.has_key(mname):
+            if mname in newgames:
                 newroms = newgames[mname]
             for rom in [r for r in machine if r.tag == "rom"]:
                 # Ignore nodump. Any others?
-                if rom.attrib.has_key("status") and rom.attrib["status"] == "nodump":
+                if "status" in rom.attrib and rom.attrib["status"] == "nodump":
                     continue
                 # How can we screw up the rom filename, let me count the ways
                 # Datfiles use backslashed, zips use forward slashes
@@ -155,9 +158,9 @@ def find_files_for_dat(dat, srcs, cachepath):
                         dupname = romdups[0]
                         dupsize = newroms[dupname]["size"]
                         dupcrc = newroms[dupname]["crc"]
-                        print >> sys.stderr, "In game {0},".format(machine.attrib["name"]),
-                        print >> sys.stderr, "skipping {0}({1}:{2:08X})".format(romname, romsize, romcrc),
-                        print >> sys.stderr, "as duplicate of {0}({1}:{2:08X})".format(dupname, dupsize, dupcrc)
+                        print("In game {0},".format(machine.attrib["name"]), file=sys.stderr, end="")
+                        print("skipping {0}({1}:{2:08X})".format(romname, romsize, romcrc), file=sys.stderr, end="")
+                        print("as duplicate of {0}({1}:{2:08X})".format(dupname, dupsize, dupcrc), file=sys.stderr)
                         dupfound = True
                     else:
                         # Dup filename, but not file content. Add a path element
@@ -166,19 +169,19 @@ def find_files_for_dat(dat, srcs, cachepath):
                             # This is a dup in another clone. Rename the other
                             # clone as well
                             newromname = newroms[dupname]["clonename"] + '/' + dupname
-                            print "Renaming {0} to {1}".format(dupname, newromname)
+                            print("Renaming {0} to {1}".format(dupname, newromname))
                             newroms[newromname] = newroms[dupname]
                             newroms[newromname]["clonename"] = None
                             del newroms[dupname]
                         if not namefixed:
                             # Now you're unique, just like everyone else
-                            print "Saving {0} in {1}".format(romname, machine.attrib["name"].strip()),
+                            print("Saving {0} in {1}".format(romname, machine.attrib["name"].strip()), end="")
                             romname = machine.attrib["name"].strip() + '/' + romname
-                            print "to {0} in {1}".format(romname, mname)
+                            print("to {0} in {1}".format(romname, mname))
                 if dupfound and not namefixed:
                     continue
                 romkey = (romcrc, romsize)
-                if srclist.has_key(romkey):
+                if romkey in srclist:
                     newroms[romname] = {"size": romsize, "crc": romcrc, "base": srclist[romkey][0], "file": srclist[romkey][1], "clonename": clonename}
                 else:
                     newroms[romname] = {"size": romsize, "crc": romcrc, "base": None, "file": None, "clonename": clonename}
@@ -220,55 +223,104 @@ def make_zips_from_game(dest, game):
                 # Well, whaddaya know. A rom was in the datfile, but we couldn't
                 # find a match. Good thing we found one here or we would have
                 # had an incomplete set. ;-)
-                if rom["file"] == None and tmproms.has_key((rom["crc"], rom["size"])):
+                if rom["file"] == None and (rom["crc"], rom["size"]) in tmproms:
                     rom["base"] = tmpfile
                     rom["file"] = tmproms[(rom["crc"], rom["size"])]
         except:
             pass
 
-    mzip = open(mpath, 'w')
-    centdir = ""
+    mzip = open(mpath, 'wb')
+    centdir = b""
     count = 0
     for rom in roms:
         romname = rom["name"]
         romsize = rom["size"]
         rombase = rom["base"]
         romfile = rom["file"]
-        data = '\0' * romsize
-        if rombase == None:
-            data = open(romfile).read()
-        else:
-            data = zipfile.ZipFile(rombase, 'r').open(romfile).read()
-        # See, it's activities like this where I end up needing to multiprocess
-        # my apps. I probably could make this run much faster if I just read the
-        # CRC from the previous zip. Perhaps I'm just letting my trust issues
-        # get in my way.
-        crc = zlib.crc32(data)
-        # What?! Negative CRCs? This is absurd!
-        if crc < 0:
-            crc += 2**32
+
         # In order to get the best compression, a compressobj needs to be
         # created. Wouldn't it be nice if this was selectable from the zipfile
         # helper functions. :P
         cobj = zlib.compressobj(9, zlib.DEFLATED, -15)
-        zipdata = cobj.compress(data) + cobj.flush()
-        # Header for file
-        header = struct.pack("<4bHHHHHLLLHH{0}s".format(len(romname)), 80, 75, 3, 4, 20, 2, 8,
-                             48128, 8600, crc, len(zipdata), len(data), len(romname), 0, romname)
-        # Header for central directory. Accumulate here so a CRC can be generated.
-        centdir += struct.pack("<4BHHHHHHLLLHHHHHLL{0}s".format(len(romname)), 80,
-                               75, 1, 2, 0, 20, 2, 8, 48128, 8600, crc, len(zipdata),
-                               len(data), len(romname), 0, 0, 0, 0, 0, mzip.tell(), romname)
+        crc = 0
+        zipdatalen = 0
+        rawdatalen = 0
+
+        # Initial header for file, to fill in space
+        rombytes = romname.encode(encoding='UTF-8')
+        headerpos = mzip.tell()
+        header = struct.pack("<4bHHHHHLLLHH{0}s".format(len(rombytes)), 80, 75, 3, 4, 20, 2, 8,
+                             48128, 8600, crc, zipdatalen, rawdatalen, len(rombytes), 0, rombytes)
         mzip.write(header)
+
+        srcfile = None
+        if rombase == None:
+            if romfile != None:
+                srcfile = open(romfile)
+        else:
+            srcfile = zipfile.ZipFile(rombase, 'r').open(romfile)
+
+        # I choose 16M buffers because reasons. This would make a wonderful configurable parameter.
+        BUFFER_LIMIT = 4096 * 4096 #2m55s
+
+        # Read the file in chunks. This keeps memory usage reasonable, especially with roms like
+        # hapyfsh2.
+        while True:
+            # srcfile is None when neither a zipfile or a binary file was found
+            if srcfile == None:
+                # Create a block of zeros
+                if romsize - rawdatalen < BUFFER_LIMIT:
+                    data = b'\0' * (romsize - rawdatalen)
+                else:
+                    data = b'\0' * BUFFER_LIMIT
+            else:
+                data = srcfile.read(BUFFER_LIMIT)
+
+            if len(data) == 0:
+                break;
+
+            crc = zlib.crc32(data, crc)
+
+            rawdatalen += len(data)
+            zipdata = cobj.compress(data)
+            mzip.write(zipdata)
+            zipdatalen += len(zipdata)
+
+        zipdata = cobj.flush()
         mzip.write(zipdata)
+        zipdatalen += len(zipdata)
+
+        # Keep track of where we start, because it's time to go back.
+        nextfilepos = mzip.tell()
+
+        # What?! Negative CRCs? This is absurd!
+        if crc < 0:
+            crc += 2**32
+
+        # Header for file
+        header = struct.pack("<4bHHHHHLLLHH{0}s".format(len(rombytes)), 80, 75, 3, 4, 20, 2, 8,
+                             48128, 8600, crc, zipdatalen, rawdatalen, len(rombytes), 0, rombytes)
+        # Head back in the file to write the completed header
+        mzip.seek(headerpos)
+        mzip.write(header)
+
+        # ...and head forward to start the next file (or the catalog, we're not picky)
+        mzip.seek(nextfilepos)
+
+        # Header for central directory. Accumulate here so a CRC can be generated.
+        centdir += struct.pack("<4BHHHHHHLLLHHHHHLL{0}s".format(len(rombytes)), 80,
+                               75, 1, 2, 0, 20, 2, 8, 48128, 8600, crc, zipdatalen, rawdatalen,
+                               len(rombytes), 0, 0, 0, 0, 0, headerpos, rombytes)
         count += 1
     crc = zlib.crc32(centdir)
     # Somedays I miss C with it's quite reasonable unsigned int
     if crc < 0:
         crc += 2**32
+    combytes = "TORRENTZIPPED-{0:08X}".format(crc).encode('UTF-8')
+    if len(combytes) != 22:
+        raise UnicodeEncodeError
     # Zipfile footer with TORRENTZIPPED comment
-    footer = struct.pack("<4BHHHHLLH22s", 80, 75, 05, 06, 0, 0, count, count, len(centdir),
-                         mzip.tell(), 22, "TORRENTZIPPED-{0:08X}".format(crc))
+    footer = struct.pack("<4BHHHHLLH22s", 80, 75, 5, 6, 0, 0, count, count, len(centdir), mzip.tell(), 22, combytes)
     mzip.write(centdir)
     mzip.write(footer)
 
@@ -283,7 +335,11 @@ class ZipMaker(object):
     def __init__(self, dest):
         self.dest = dest
     def __call__(self, game):
-        make_zips_from_game(self.dest, game)
+        try:
+            make_zips_from_game(self.dest, game)
+        except Exception:
+            print("Error processing {0}".format(game["machine"]))
+            print(traceback.format_exc())
 
 if __name__ == '__main__':
     pool = Pool()
@@ -300,7 +356,7 @@ if __name__ == '__main__':
         os.mkdir(args.dest)
 
 
-    print >> sys.stderr, "Matching..."
+    print("Matching...", file=sys.stderr)
     games = find_files_for_dat(args.dat, [os.path.normpath(x) for x in args.src], args.source_cache)
-    print >> sys.stderr, "Writing..."
-    pool.map(ZipMaker(args.dest), games)
+    print("Writing...", file=sys.stderr)
+    pool.map(ZipMaker(args.dest), games, 5)
