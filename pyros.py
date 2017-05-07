@@ -118,8 +118,6 @@ def find_files_for_dat(dat, srcs, cachepath):
         # This is where the listxml support would need to come in.
         for machine in [m for m in datroot if m.tag == "machine" or m.tag == "game"]:
             mname = machine.attrib["name"].strip()
-            if mname != "hapyfsh2":
-                continue
             clonename = None
             if "cloneof" in machine.attrib:
                 clonename = mname
@@ -358,5 +356,6 @@ if __name__ == '__main__':
 
     print("Matching...", file=sys.stderr)
     games = find_files_for_dat(args.dat, [os.path.normpath(x) for x in args.src], args.source_cache)
+    games.sort(reverse = True, key=lambda m: sum([x["size"] for x in m["roms"]]))
     print("Writing...", file=sys.stderr)
-    pool.map(ZipMaker(args.dest), games, 5)
+    pool.map(ZipMaker(args.dest), games, 2)
