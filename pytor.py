@@ -30,6 +30,7 @@ def bencode_read(f):
         val, c = bencode_readint(f)
         if c != 'e':
             raise ValueError
+        return val
     elif etype.isdigit():
         f.seek(-1, os.SEEK_CUR)
         slen, c = bencode_readint(f)
