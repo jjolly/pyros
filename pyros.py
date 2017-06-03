@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from tzip import *
 import os, sys, gc
 from stat import *
 import argparse
@@ -187,71 +188,6 @@ def find_files_for_dat(dat, srcs, cachepath):
     # Hood's Balls! This is horrible! Sack the twerp that wrote this!
     return [{"machine": x, "roms": sorted([{"name": y, "size": newgames[x][y]["size"], "crc": newgames[x][y]["crc"], "base": newgames[x][y]["base"], "file": newgames[x][y]["file"]} for y in newgames[x]], key=lambda x: str.lower(x["name"]))} for x in newgames]
 
-def copy_file_to_zip(filename, zfile, srcfile, srcount):
-    # In order to get the best compression, a compressobj needs to be
-    # created. Wouldn't it be nice if this was selectable from the zfile
-    # helper functions. :P
-    cobj = zlib.compressobj(9, zlib.DEFLATED, -15)
-    crc = 0
-    zipdatalen = 0
-    rawdatalen = 0
-
-    # Initial header for file, to fill in space
-    headerpos = zfile.tell()
-    header = struct.pack("<4bHHHHHLLLHH{0}s".format(len(filename)), 80, 75, 3, 4, 20, 2, 8,
-                         48128, 8600, crc, zipdatalen, rawdatalen, len(filename), 0, filename)
-    zfile.write(header)
-
-    # I choose 16M buffers because reasons. This would make a wonderful configurable parameter.
-    BUFFER_LIMIT = 4096 * 4096 #2m55s
-
-    # Read the file in chunks. This keeps memory usage reasonable, especially with roms like
-    # hapyfsh2.
-    while True:
-        # srcfile is None when neither a zfile or a binary file was found
-        if srcfile == None:
-            # Create a block of zeros
-            if srcount - rawdatalen < BUFFER_LIMIT:
-                data = b'\0' * (srcount - rawdatalen)
-            else:
-                data = b'\0' * BUFFER_LIMIT
-        else:
-            data = srcfile.read(BUFFER_LIMIT)
-
-        if len(data) == 0:
-            break;
-
-        crc = zlib.crc32(data, crc)
-
-        rawdatalen += len(data)
-        zipdata = cobj.compress(data)
-        zfile.write(zipdata)
-        zipdatalen += len(zipdata)
-
-    zipdata = cobj.flush()
-    zfile.write(zipdata)
-    zipdatalen += len(zipdata)
-
-    # Keep track of where we start, because it's time to go back.
-    nextfilepos = zfile.tell()
-
-    # What?! Negative CRCs? This is absurd!
-    if crc < 0:
-        crc += 2**32
-
-    # Header for file
-    header = struct.pack("<4bHHHHHLLLHH{0}s".format(len(filename)), 80, 75, 3, 4, 20, 2, 8,
-                         48128, 8600, crc, zipdatalen, rawdatalen, len(filename), 0, filename)
-    # Head back in the file to write the completed header
-    zfile.seek(headerpos)
-    zfile.write(header)
-
-    # ...and head forward to start the next file (or the catalog, we're not picky)
-    zfile.seek(nextfilepos)
-
-    return crc, zipdatalen, rawdatalen
-
-
 # Take a game with a list of roms and build a torrentzip
 # Using the zipfile module is not possible, as there is not enough control
 # over the compresion type and dictionary content to properly create a
@@ -292,44 +228,7 @@ def make_zips_from_game(dest, game):
         except:
             pass
 
-    mzip = open(mpath, 'wb')
-    centdir = b""
-    count = 0
-    for rom in roms:
-        romname = rom["name"]
-        romsize = rom["size"]
-        rombase = rom["base"]
-        romfile = rom["file"]
-
-        rombytes = romname.encode(encoding='UTF-8')
-
-        srcfile = None
-        if rombase == None:
-            if romfile != None:
-                srcfile = open(romfile)
-        else:
-            srcfile = zipfile.ZipFile(rombase, 'r').open(romfile)
-
-        headerpos = mzip.tell()
-
-        crc, zipdatalen, rawdatalen = copy_file_to_zip(rombytes, mzip, srcfile, romsize)
-
-        # Header for central directory. Accumulate here so a CRC can be generated.
-        centdir += struct.pack("<4BHHHHHHLLLHHHHHLL{0}s".format(len(rombytes)), 80,
-                               75, 1, 2, 0, 20, 2, 8, 48128, 8600, crc, zipdatalen, rawdatalen,
-                               len(rombytes), 0, 0, 0, 0, 0, headerpos, rombytes)
-        count += 1
-    crc = zlib.crc32(centdir)
-    # Somedays I miss C with it's quite reasonable unsigned int
-    if crc < 0:
-        crc += 2**32
-    combytes = "TORRENTZIPPED-{0:08X}".format(crc).encode('UTF-8')
-    if len(combytes) != 22:
-        raise UnicodeEncodeError
-    # Zipfile footer with TORRENTZIPPED comment
-    footer = struct.pack("<4BHHHHLLH22s", 80, 75, 5, 6, 0, 0, count, count, len(centdir), mzip.tell(), 22, combytes)
-    mzip.write(centdir)
-    mzip.write(footer)
+    create_zip_from_files(mpath, roms)
 
     # Remove previous file if it was kept around.
     if tmpfile != None:
