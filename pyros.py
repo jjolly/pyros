@@ -207,8 +207,10 @@ def make_zips_from_game(dest, game):
             with zipfile.ZipFile(mpath, 'r') as srczip:
                 # If the zip on disk matches what we need to write, then skip this
                 # file entirely. We're done.
-                if all(map(lambda x, y: x["name"] == y.filename and x["crc"] == y.CRC and x["size"] == y.file_size, roms, srczip.infolist())):
-                    return
+                zinflist = srczip.infolist()
+                if len(roms) == len(zinflist):
+                    if all(map(lambda x, y: x["name"] == y.filename and x["crc"] == y.CRC and x["size"] == y.file_size, roms, zinflist)):
+                        return
             # Move it to a temp directory and keep it's data around. Maybe we
             # can use it's contents.
             tmpdir = tempfile.mkdtemp(dir=dest)
