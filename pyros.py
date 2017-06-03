@@ -246,6 +246,7 @@ class ZipMaker(object):
         except Exception:
             print("Error processing {0}".format(game["machine"]))
             print(traceback.format_exc())
+            raise
 
 if __name__ == '__main__':
     pool = Pool()
