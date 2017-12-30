@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from __future__ import print_function
+import sys
 import os
 import argparse
 import hashlib
@@ -50,7 +52,7 @@ def list_unfound(path, intorr):
         if os.path.isdir(filepath):
             list_unfound(filepath, intorr)
         elif filepath not in intorr:
-            print filepath
+            print(filepath)
 
 def pieces_generator(srcpath, info):
     """Yield pieces from download file(s)."""
@@ -119,8 +121,8 @@ def pytor_get_completion(path, info):
             else:
                 complete[pfile['name']] = size_read
         i += 1
-        print '%i of %i complete (%.1f%%)\r' % (i, len(info['pieces']) / 20, 2000.0 * i / len(info['pieces'])),
-    print ''
+        print('%i of %i complete (%.1f%%)\r' % (i, len(info['pieces']) / 20, 2000.0 * i / len(info['pieces'])), file=sys.stderr, end='')
+    print('', file=sys.stderr)
     return complete
 
 def pytor_get_file_sizes(path, info):
@@ -152,7 +154,9 @@ if __name__ == "__main__":
 
     data = bencode_read(f, None)
 
-    complete = pytor_get_completion(args.path, data['info'])
+    complete = {}
+    if not args.untracked or showall or args.complete or args.incomplete or args.start:
+        complete = pytor_get_completion(args.path, data['info'])
 
     intorr = pytor_get_file_sizes(args.path, data['info'])
 
@@ -168,12 +172,12 @@ if __name__ == "__main__":
         finished += size_complete
         if showall or (args.complete and size_total == size_complete) or (args.incomplete and size_total != size_complete):
             if showall or args.percent:
-                print '[%5.1f%%] ' % (100.0 * size_complete / size_total),
-            print tfpath
+                print('[%5.1f%%] ' % (100.0 * size_complete / size_total), end='')
+            print(tfpath)
 
     if showall or args.untracked:
         list_unfound(args.path, intorr)
 
     if showall or args.start:
-        print 'Completed %i of %i (%.1f%%)' % (finished, total, 100.0 * finished / total)
+        print('Completed %i of %i (%.1f%%)' % (finished, total, 100.0 * finished / total))
 
