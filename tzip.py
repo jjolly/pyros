@@ -108,6 +108,8 @@ def add_files_to_zip(zfile, centdir, count, roms):
     zfile.write(footer)
 
 def create_zip_from_files(zippath, roms):
+    if all([x['file'] == None for x in roms]):
+        return
     zfile = open(zippath, 'wb')
     add_files_to_zip(zfile, b'', 0, roms)
 
