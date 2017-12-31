@@ -217,7 +217,7 @@ def ParseZipToParent(root, zf):
                     ET.SubElement(root, "file", attr)
 
 def ParsePathToParent(root, srcpath):
-    for entry in os.listdir(srcpath):
+    for entry in sorted(os.listdir(srcpath)):
         attr = {"name": entry}
         entrypath = os.path.join(srcpath, entry)
         print("\r{}".format(entrypath), end='', file=sys.stderr)
