@@ -141,13 +141,13 @@ def ParseZipToParent(root, zf):
                     ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(zh))
                 else:
                     attr["crc32"] = "{:08x}".format(zi.CRC)
-                    attr("file_size"] = str(zi.file_size)
-                    attr("compress_size"] = str(zi.compress_size)
+                    attr["file_size"] = str(zi.file_size)
+                    attr["compress_size"] = str(zi.compress_size)
                     ET.SubElement(root, "file", attr)
 
 def ParsePathToParent(root, srcpath):
     for entry in os.listdir(srcpath):
-        attr = {"name": entry]}
+        attr = {"name": entry}
         entrypath = os.path.join(srcpath, entry)
         print("\r{}".format(entrypath), end='', file=sys.stderr)
         if os.path.isdir(entrypath):
@@ -158,7 +158,7 @@ def ParsePathToParent(root, srcpath):
             else:
                 filelen, crc32 = GatherFileData(open(entrypath, "rb"))
                 attr["crc32"] = crc32
-                attr["file_size"] = filelen
+                attr["file_size"] = str(filelen)
                 ET.SubElement(root, "file", attr)
 
 def main():
@@ -174,7 +174,7 @@ def main():
     tree = ET.ElementTree(ET.Element("romset"))
     root = tree.getroot()
 
-    ParsePathToParent(root, args.src, 1)
+    ParsePathToParent(root, args.src)
 
     print("", file=sys.stderr)
 
