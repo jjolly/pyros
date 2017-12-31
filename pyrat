@@ -234,20 +234,59 @@ def ParsePathToParent(root, srcpath):
                 attr["file_size"] = str(filelen)
                 ET.SubElement(root, "file", attr)
 
-def main():
-    aparse = argparse.ArgumentParser(description='Create Romset DAT (RAT) file from directory')
-    aparse.add_argument('-o', '--output', help='Output RAT to file <output>')
-    aparse.add_argument('src', help='Source directory')
+def ParseFileToParent(root, src):
+    try:
+        srctree = ET.parse(src)
+    except ET.ParseError:
+        # Ug, at least a clrmamepro list format should be parsed
+        raise NotImplementedError("Unable to parse non-xml datfile formats")
 
-    args = aparse.parse_args()
+    srcroot = srctree.getroot()
 
-    if not os.path.isdir(args.src):
-        raise ValueError("Source '{}' not a directory".format(args.src))
+    if srcroot.tag == "romset":
+        root.extend(srcroot)
+    elif srcroot.tag == "mame" or srcroot.tag == "datafile":
+        for e in srcroot:
+            if e.tag == "game" or e.tag == "machine":
+                z = ET.SubElement(root, "zip", {"name": "{}.zip".format(e.get("name"))})
+                for r in e:
+                    if r.tag == "rom":
+                        attr = {}
+                        attr["name"] = r.get("name")
+                        attr["crc32"] = r.get("crc")
+                        attr["file_size"] = r.get("size")
+                        ET.SubElement(z, "file", attr)
 
+def BuildRAT(src):
     tree = ET.ElementTree(ET.Element("romset"))
     root = tree.getroot()
 
-    ParsePathToParent(root, args.src)
+    if isinstance(src, str) and os.path.isdir(src):
+        ParsePathToParent(root, src)
+    elif isinstance(src, str) or hasattr(src, 'read'):
+        ParseFileToParent(root, src)
+    elif hasattr(src, '__iter__'):
+        for i in src:
+            _, fname = os.path.split(i)
+            dname, _ = os.path.splitext(fname)
+            if os.path.isdir(i):
+                ParsePathToParent(ET.SubElement(root, "dir", {"name": dname}), i)
+            else:
+                ParseFileToParent(ET.SubElement(root, "romset", {"name": dname}), i)
+
+    return tree
+
+def main():
+    aparse = argparse.ArgumentParser(description='Create Romset DAT (RAT) file from directory')
+    aparse.add_argument('-o', '--output', default=None, help='Output RAT to file <output>')
+    aparse.add_argument('src', nargs='+', help='Source directories or files')
+
+    args = aparse.parse_args()
+
+    if len(args.src) == 1:
+        tree = BuildRAT(args.src[0])
+    else:
+        tree = BuildRAT(args.src)
 
     print("", file=sys.stderr)
 
