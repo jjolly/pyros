@@ -208,7 +208,8 @@ def ParseZipToParent(root, zf):
         if not zi.filename.endswith('/'):
             with zf.open(zi) as zh:
                 zh = makeseekable(zh)
-                if isValidZipFile(zh):
+                _, extname = os.path.splitext(zi.filename)
+                if extname.lower() == ".zip" and isValidZipFile(zh):
                     ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(zh))
                 else:
                     attr["crc32"] = "{:08x}".format(zi.CRC)
@@ -224,7 +225,8 @@ def ParsePathToParent(root, srcpath):
         if os.path.isdir(entrypath):
             ParsePathToParent(ET.SubElement(root, "dir", attr), entrypath)
         elif os.path.isfile(entrypath):
-            if isValidZipFile(entrypath):
+            _, extname = os.path.splitext(entry)
+            if extname.lower() == '.zip' and isValidZipFile(entrypath):
                 ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(entrypath))
             else:
                 filelen, crc32 = GatherFileData(open(entrypath, "rb"))
