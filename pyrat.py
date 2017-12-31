@@ -7,7 +7,7 @@ import zipfile
 import zlib
 import hashlib
 import xml.etree.ElementTree as ET
-import ziz
+import types # For binding seek and tell to ZipExtFile
 
 def validateZipFile(zh):
     files = {}
@@ -121,6 +121,77 @@ def isValidZipFile(zh):
         valid = False
     return valid
 
+def seekZipExtFile(self, offset, from_what = 0):
+    """Seek method for ZipExtFile
+
+    Allows repositioning within a zipfile. Does not perform actual reposition,
+    but rather reads forward if the seek is ahead, or reads from zero if the
+    seek is behind the current position."""
+    curr_pos = self.tell()
+    new_pos = offset # Default to seek from start
+    if from_what == 1: # Seek from current offset
+        new_pos = curr_pos + offset
+    elif from_what == 2: # Seek from EOF
+        new_pos = self._seeklen + offset
+
+    if new_pos > self._seeklen:
+        new_pos = self._seeklen
+
+    if new_pos < 0:
+        new_pos = 0
+
+    read_offset = new_pos - curr_pos
+    buff_offset = read_offset + self._offset
+
+    if buff_offset >= 0 and buff_offset < len(self._readbuffer):
+        # Just move the _offset index if the new position is in the _readbuffer
+        self._offset = buff_offset
+        read_offset = 0
+    elif read_offset < 0:
+        # Position is before the current position. Reset the ZipExtFile
+        # object and read up to the new position.
+        self._fileobj.seek(self._startcomp)
+        self._running_crc = self._startcrc
+        self._compress_left = self._complen
+        self._left = self._seeklen
+        self._readbuffer = b''
+        self._offset = 0
+        self._decompressor = zipfile._get_decompressor(self._compress_type)
+        self._eof = False
+        read_offset = new_pos
+
+    # The read offset should be positive or zero.
+    # Keep reading until the offset is zero
+    while read_offset > 0:
+        read_len = min(1024 * 1024, read_offset)
+        self.read(read_len)
+        read_offset -= read_len
+
+    return self.tell()
+
+def tellZipExtFile(self):
+    offset = self._seeklen - self._left - len(self._readbuffer) + self._offset
+    return offset
+
+def makeseekable(zh):
+    try:
+        if zh.seekable():
+            return zh
+    except Exception:
+        pass
+    # Keep track of the start of compressed data in order to reset to that point
+    zh._startcomp = zh._fileobj.tell()
+    # This is usually zero, but no chances were taken
+    zh._startcrc  = zh._running_crc
+    # These two values need to be restored when the object is reset
+    zh._complen   = zh._compress_left
+    zh._seeklen   = zh._left
+    # Yes, yes we are
+    zh.seekable   = lambda: True
+    zh.seek       = types.MethodType(seekZipExtFile, zh)
+    zh.tell       = types.MethodType(tellZipExtFile, zh)
+    return zh
+
 def GatherFileData(f):
     crc32 = zlib.crc32(b'')
     filelen = 0
@@ -136,7 +207,7 @@ def ParseZipToParent(root, zf):
         attr = {"name": zi.filename}
         if not zi.filename.endswith('/'):
             with zf.open(zi) as zh:
-                zh = ziz.makeseekable(zh)
+                zh = makeseekable(zh)
                 if isValidZipFile(zh):
                     ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(zh))
                 else:
