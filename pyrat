@@ -242,7 +242,10 @@ def main():
 
     print("", file=sys.stderr)
 
-    tree.write(sys.stdout, encoding="unicode", xml_declaration=True)
+    outfile = sys.stdout
+    if args.output != None:
+        outfile = open(args.output, 'w')
+    tree.write(outfile, encoding="unicode", xml_declaration=True)
 
 if __name__ == '__main__':
     main()
