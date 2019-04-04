@@ -154,7 +154,7 @@ def ParsePathToParent(root, srcpath, sha1zip=False, recurse=-1):
                 attr["sha1"] = sha1
                 ET.SubElement(root, "file", attr)
 
-def ParseFileToParent(root, src):
+def ParseFileToParent(root, src, unzipped):
     try:
         srctree = ET.parse(src)
     except ET.ParseError:
@@ -168,7 +168,11 @@ def ParseFileToParent(root, src):
     elif srcroot.tag == "mame" or srcroot.tag == "datafile":
         for e in srcroot:
             if e.tag == "game" or e.tag == "machine":
-                z = ET.SubElement(root, "zip", {"name": "{}.zip".format(e.get("name"))})
+                mname = e.get("name")
+                if mname in unzipped:
+                    z = ET.SubElement(root, "dir", {"name": mname})
+                else:
+                    z = ET.SubElement(root, "zip", {"name": "{}.zip".format(mname)})
                 for r in e:
                     if r.tag == "rom":
                         attr = {}
@@ -179,38 +183,61 @@ def ParseFileToParent(root, src):
                             attr["sha1"] = r.get("sha1")
                         ET.SubElement(z, "file", attr)
 
-def BuildRAT(src, sha1zip=False, recurse=-1):
+def BuildRAT(src, unzipped=[], sha1zip=False, recurse=-1):
     tree = ET.ElementTree(ET.Element("romset"))
     root = tree.getroot()
 
     if isinstance(src, str) and os.path.isdir(src):
         ParsePathToParent(root, src[0], sha1zip, recurse)
     elif isinstance(src, str) or hasattr(src, 'read'):
-        ParseFileToParent(root, src)
+        ParseFileToParent(root, src, unzipped)
     elif hasattr(src, '__iter__'):
         for i in src:
             _, fname = os.path.split(i)
             dname, _ = os.path.splitext(fname)
             if os.path.isdir(i):
-                ParsePathToParent(ET.SubElement(root, "dir", {"name": dname}), i)
+                ParsePathToParent(ET.SubElement(root, "dir", {"name": dname}), i, unzipped)
             else:
-                ParseFileToParent(ET.SubElement(root, "romset", {"name": dname}), i)
+                ParseFileToParent(ET.SubElement(root, "romset", {"name": dname}), i, unzipped)
 
     return tree
 
+"""
+I want to make an XML that actually represents the content of the romset.
+So often a romset does not match the DATfile - the "machine"s are uncompress,
+or some are compressed while others are not, or the whole DATfile is a
+compressed file filled with compressed files. It's madness and it needs to
+stop.
+
+This script creates a "Romset Datfile", or RAT, that has three elements: dir,
+file, and zip. The dir can contain dir, file, and zip subelements. The zip
+can contain file and zip subelements. The file is a leaf subelement.
+
+The script uses either a directory or one or more datfiles to generate the RAT.
+If a directory is provided, then all files and subdirectories are parsed in the
+directory. If one datfile is provided, then a one-to-one translation is made.
+Each machine in the datfile will be made into a zip subelement. If the provided
+file is a MAME XMLList, Then God help our immortal souls (TODO).
+If multiple datfiles are provided, then each datfile is considered a zipfile
+at the root of the generated RAT file.
+
+An option is provided to specify machines in the datfile to add as dirs,
+not zips.
+"""
 def main():
     aparse = argparse.ArgumentParser(description='Create Romset DAT (RAT) file from directory')
     aparse.add_argument('-o', '--output', default=None, help='Output RAT to file <output>')
     aparse.add_argument('-r', '--recurse', type=int, default=-1, help='Depth to recurse into zipfile. Ignored if DAT is used for the source. -1 to recurse infinitely (default). 0 to not recurse')
     aparse.add_argument('-s', '--sha1zip', action='store_true', help='Produce SHA1 hash for all files in zips')
+    aparse.add_argument('-u', '--unzipped', action='append', default=[], help='Store specific DAT or Machine unzipped')
     aparse.add_argument('src', nargs='+', help='Source directories or files')
 
     args = aparse.parse_args()
 
     if len(args.src) == 1:
-        tree = BuildRAT(args.src[0], sha1zip=args.sha1zip, recurse=args.recurse)
+        tree = BuildRAT(args.src[0], unzipped=args.unzipped, sha1zip=args.sha1zip, recurse=args.recurse)
     else:
-        tree = BuildRAT(args.src, sha1zip=args.sha1zip, recurse=args.recurse)
+        tree = BuildRAT(args.src, unzipped=args.unzipped, sha1zip=args.sha1zip, recurse=args.recurse)
 
     print("", file=sys.stderr)
 
