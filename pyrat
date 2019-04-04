@@ -107,15 +107,17 @@ def makeseekable(zh):
 
 def GatherFileData(f):
     crc32 = zlib.crc32(b'')
+    sha1 = hashlib.sha1()
     filelen = 0
     f.seek(0)
     for i in f:
         crc32 = zlib.crc32(i, crc32)
+        sha1.update(i)
         filelen += len(i)
 
-    return filelen, "{:08x}".format(crc32)
+    return filelen, "{:08x}".format(crc32), sha1.hexdigest()
 
-def ParseZipToParent(root, zf):
+def ParseZipToParent(root, zf, sha1zip=False):
     for zi in zf.infolist():
         attr = {"name": zi.filename}
         if not zi.filename.endswith('/'):
@@ -123,28 +125,33 @@ def ParseZipToParent(root, zf):
                 zh = makeseekable(zh)
                 _, extname = os.path.splitext(zi.filename)
                 if extname.lower() == ".zip" and isValidZipFile(zh):
-                    ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(zh))
+                    ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(zh), sha1zip)
                 else:
                     attr["crc32"] = "{:08x}".format(zi.CRC)
                     attr["file_size"] = str(zi.file_size)
                     attr["compress_size"] = str(zi.compress_size)
+                    if sha1zip:
+                        flen, fcrc32, sha1 = GatherFileData(zh)
+                        assert flen == zi.file_size and fcrc32 == icrc32, "In {}, file {} size {} vs. info size {}, file crc32 {} vs. info crc32 {}".format(zf.filename, zi.filename, flen, zi.file_size, fcrc32, icrc32)
+                        attr["sha1"] = sha1
                     ET.SubElement(root, "file", attr)
 
-def ParsePathToParent(root, srcpath):
+def ParsePathToParent(root, srcpath, sha1zip=False):
     for entry in sorted(os.listdir(srcpath)):
         attr = {"name": entry}
         entrypath = os.path.join(srcpath, entry)
         print("\r{}".format(entrypath), end='', file=sys.stderr)
         if os.path.isdir(entrypath):
-            ParsePathToParent(ET.SubElement(root, "dir", attr), entrypath)
+            ParsePathToParent(ET.SubElement(root, "dir", attr), entrypath, sha1zip)
         elif os.path.isfile(entrypath):
             _, extname = os.path.splitext(entry)
             if extname.lower() == '.zip' and isValidZipFile(entrypath):
-                ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(entrypath))
+                ParseZipToParent(ET.SubElement(root, "zip", attr), zipfile.ZipFile(entrypath), sha1zip)
             else:
-                filelen, crc32 = GatherFileData(open(entrypath, "rb"))
+                filelen, crc32, sha1 = GatherFileData(open(entrypath, "rb"))
                 attr["crc32"] = crc32
                 attr["file_size"] = str(filelen)
+                attr["sha1"] = sha1
                 ET.SubElement(root, "file", attr)
 
 def ParseFileToParent(root, src):
@@ -168,14 +175,16 @@ def ParseFileToParent(root, src):
                         attr["name"] = r.get("name")
                         attr["crc32"] = r.get("crc")
                         attr["file_size"] = r.get("size")
+                        if "sha1" in r:
+                            attr["sha1"] = r.get("sha1")
                         ET.SubElement(z, "file", attr)
 
-def BuildRAT(src):
+def BuildRAT(src, sha1zip=False):
     tree = ET.ElementTree(ET.Element("romset"))
     root = tree.getroot()
 
     if isinstance(src, str) and os.path.isdir(src):
-        ParsePathToParent(root, src)
+        ParsePathToParent(root, src[0], sha1zip)
     elif isinstance(src, str) or hasattr(src, 'read'):
         ParseFileToParent(root, src)
     elif hasattr(src, '__iter__'):
@@ -192,14 +201,15 @@ def BuildRAT(src):
 def main():
     aparse = argparse.ArgumentParser(description='Create Romset DAT (RAT) file from directory')
     aparse.add_argument('-o', '--output', default=None, help='Output RAT to file <output>')
+    aparse.add_argument('-s', '--sha1zip', action='store_true', help='Produce SHA1 hash for all files in zips')
     aparse.add_argument('src', nargs='+', help='Source directories or files')
 
     args = aparse.parse_args()
 
     if len(args.src) == 1:
-        tree = BuildRAT(args.src[0])
+        tree = BuildRAT(args.src[0], sha1zip=args.sha1zip)
     else:
-        tree = BuildRAT(args.src)
+        tree = BuildRAT(args.src, sha1zip=args.sha1zip)
 
     print("", file=sys.stderr)
 
