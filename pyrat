@@ -163,7 +163,7 @@ def ParseFileToParent(root, src, unzipped):
 
     srcroot = srctree.getroot()
 
-    if srcroot.tag == "romset":
+    if srcroot.tag == "romsetdat":
         root.extend(srcroot)
     elif srcroot.tag == "mame" or srcroot.tag == "datafile":
         for e in srcroot:
@@ -184,7 +184,7 @@ def ParseFileToParent(root, src, unzipped):
                         ET.SubElement(z, "file", attr)
 
 def BuildRAT(src, unzipped=[], sha1zip=False, recurse=-1):
-    tree = ET.ElementTree(ET.Element("romset"))
+    tree = ET.ElementTree(ET.Element("romsetdat"))
     root = tree.getroot()
 
     if isinstance(src, str) and os.path.isdir(src):
