@@ -187,18 +187,21 @@ def BuildRAT(src, unzipped=[], sha1zip=False, recurse=-1):
     tree = ET.ElementTree(ET.Element("romsetdat"))
     root = tree.getroot()
 
-    if isinstance(src, str) and os.path.isdir(src):
+    if os.path.isdir(src[0]):
         ParsePathToParent(root, src[0], sha1zip, recurse)
-    elif isinstance(src, str) or hasattr(src, 'read'):
-        ParseFileToParent(root, src, unzipped)
-    elif hasattr(src, '__iter__'):
-        for i in src:
-            _, fname = os.path.split(i)
+    elif len(src) == 1:
+        ParseFileToParent(root, src[0], unzipped)
+    else:
+        for p in src:
+            _, fname = os.path.split(p)
             dname, _ = os.path.splitext(fname)
-            if os.path.isdir(i):
-                ParsePathToParent(ET.SubElement(root, "dir", {"name": dname}), i, unzipped)
+            if os.path.isdir(p):
+                ParsePathToParent(ET.SubElement(root, "dir", {"name": dname}), p, unzipped)
             else:
-                ParseFileToParent(ET.SubElement(root, "romset", {"name": dname}), i, unzipped)
+                if dname in unzipped or fname in unzipped or p in unzipped:
+                    ParseFileToParent(ET.SubElement(root, "dir", {"name": dname}), p, unzipped)
+                else:
+                    ParseFileToParent(ET.SubElement(root, "zip", {"name": "{}.zip".format(dname)}), p, unzipped)
 
     return tree
 
@@ -234,10 +237,7 @@ def main():
 
     args = aparse.parse_args()
 
-    if len(args.src) == 1:
-        tree = BuildRAT(args.src[0], unzipped=args.unzipped, sha1zip=args.sha1zip, recurse=args.recurse)
-    else:
-        tree = BuildRAT(args.src, unzipped=args.unzipped, sha1zip=args.sha1zip, recurse=args.recurse)
+    tree = BuildRAT(args.src, unzipped=args.unzipped, sha1zip=args.sha1zip, recurse=args.recurse)
 
     print("", file=sys.stderr)
 
