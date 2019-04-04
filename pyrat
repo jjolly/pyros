@@ -176,14 +176,14 @@ def ParseFileToParent(root, src, unzipped):
                 for r in e:
                     if r.tag == "rom":
                         attr = {}
-                        attr["name"] = r.get("name")
+                        attr["name"] = r.get("name").replace('\\', '/')
                         attr["crc32"] = r.get("crc")
                         attr["file_size"] = r.get("size")
                         if "sha1" in r:
                             attr["sha1"] = r.get("sha1")
                         ET.SubElement(z, "file", attr)
 
-def BuildRAT(src, unzipped=[], sha1zip=False, recurse=-1):
+def BuildRAT(src, unzipped=[], nosub=[], sha1zip=False, recurse=-1):
     tree = ET.ElementTree(ET.Element("romsetdat"))
     root = tree.getroot()
 
@@ -195,8 +195,8 @@ def BuildRAT(src, unzipped=[], sha1zip=False, recurse=-1):
         for p in src:
             _, fname = os.path.split(p)
             dname, _ = os.path.splitext(fname)
-            if os.path.isdir(p):
-                ParsePathToParent(ET.SubElement(root, "dir", {"name": dname}), p, unzipped)
+            if dname in nosub or fname in nosub or p in nosub:
+                ParseFileToParent(root, p, unzipped)
             else:
                 if dname in unzipped or fname in unzipped or p in unzipped:
                     ParseFileToParent(ET.SubElement(root, "dir", {"name": dname}), p, unzipped)
@@ -228,7 +228,8 @@ An option is provided to specify machines in the datfile to add as dirs,
 not zips.
 """
 def main():
-    aparse = argparse.ArgumentParser(description='Create Romset DAT (RAT) file from directory')
+    aparse = argparse.ArgumentParser(description='Create Romset DAT (RAT) file from a directory or DAT(s)')
+    aparse.add_argument('-n', '--nosub', action='append', default=[], help='Do not store specific DAT as subfolder')
     aparse.add_argument('-o', '--output', default=None, help='Output RAT to file <output>')
     aparse.add_argument('-r', '--recurse', type=int, default=-1, help='Depth to recurse into zipfile. Ignored if DAT is used for the source. -1 to recurse infinitely (default). 0 to not recurse')
     aparse.add_argument('-s', '--sha1zip', action='store_true', help='Produce SHA1 hash for all files in zips')
@@ -237,7 +238,7 @@ def main():
 
     args = aparse.parse_args()
 
-    tree = BuildRAT(args.src, unzipped=args.unzipped, sha1zip=args.sha1zip, recurse=args.recurse)
+    tree = BuildRAT(args.src, unzipped=args.unzipped, nosub=args.nosub, sha1zip=args.sha1zip, recurse=args.recurse)
 
     print("", file=sys.stderr)
 
